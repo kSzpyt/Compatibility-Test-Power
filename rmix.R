@@ -14,18 +14,4 @@ rmix <- function(n, family_1, par_1, family_2, par_2, p)
   r2 <- do.call(fun2, as.list(c(n2, par_2)))
   
   return(c(r1,r2))
-  
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
