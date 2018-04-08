@@ -4,13 +4,161 @@ author: "Karol Szpyt"
 date: "7 kwietnia 2018"
 output: html_document
 ---
+##Wstęp  
+Praca składała się bedzie z dwóch części:  
+  
+  * **I**  - Analiza mocy testów normalności  
+  * **II** - Analiza mocy testu Wilcoxona
 
+#Użyte pakiety
 ```{r message=FALSE, warning=FALSE}
-source("rmix.R")
-source("ctp.R")
 library(dplyr)
 library(tseries)
 library(ggplot2)
 library(reshape2)
 ```
+#Funkcje  
+```{r include=FALSE}
+source("rmix.R")
+```
+Funkcja "rmix" tworzy **n**-elementowy rozkład będący mieszanką dwóch innych rozkładów (**family_1**, **family_2**) o parametrach (**par_1**, **par_2**). **p** jest prawdopodobieństwem wystąpienia **pierwszego** typu rozkładu.
+```{r }
+rmix <- function(n, family_1, par_1, family_2, par_2, p)
+{
+  pp <- sample(c(1,2), n, replace = TRUE, prob = c(p, 1-p))
+  n1 <- length(pp[pp==1])
+  n2 <- length(pp[pp==2])
+  
+  eval(parse(text = paste0("fun1 <- r", family_1)))
+  r1 <- do.call(fun1, as.list(c(n1, par_1)))
+  
+  eval(parse(text = paste0("fun2 <- r", family_2)))
+  r2 <- do.call(fun2, as.list(c(n2, par_2)))
+  
+  return(c(r1,r2))
+}
+```
+```{r include=FALSE}
+source("ctp.R")
+```
+Funckja ctp jako argument przyjmuje **datalist**, który jest listą zawierającą daną ilość n-elementowych prób, na podstawie której wyliczana jest moc testów Shapiro-Wilka, Kołmogorowa-Smirnowa oraz Jarque-Bera.
+Przyjmujemy hipotezy:  
+>$H_0$: Badany rozkład jest rozkładem normalnym  
+>$H_1$: Badany rozkład **nie** jest rozkładem normlanym
+```{r, message=FALSE, warning=FALSE}
+ctp <- function(datalist){
+  
+  a <- sapply(datalist, function(x)
+  {
+    shapiro.test(x)$p.value
+  })
+  
+  b <- sapply(datalist, function(x)
+  {
+    ks.test(x, pnorm)$p.value
+  })
+  
+  c <- sapply(datalist, function(x)
+  {
+    jarque.bera.test(x)$p.value
+  })
+  
+  sw <- mean(a < 0.05)
+  ks <- mean(b < 0.05)
+  jb <- mean(c < 0.05)
+  
+  r <- tibble(sw_test = sw, ks_test = ks, jb_test = jb)
+  
+  return(r)
+}
+
+```
+  
+  
+Przykład budowy takiej listy:  
+```{r}
+lapply(rep("a", 3), function(x){
+    rnorm(5)
+  })
+```  
+Powyższy zapis pozwolił na stworzenie 3 elementowej tablicy, gdzie każdy z elementów to 5 wartości rozkładu normalnego standardowego.  
+
+##Analiza mocy testów normalności  
+
+Badanie ma na celu zobrazowanie mocy testów normalności (**Shapiro-Wilka**, **Kołmogorowa-Smirnowa** oraz **Jarque-Bera**), na podstawie danych wygenerowanych za pomocą funkcji rmix, w zależności od parametrów przyjmowanych przez tą funkcję.
+```{r}
+#ilość prób
+n <- 1000
+#długość próbki
+len <- c(10, 100, 1000, 5000)
+#pierwszy rodzaj rozkładu
+d1 <- "norm"
+#pierwsze parametry
+p1 <- c(0, 1)#10 000, 50
+#drugi rodzaj rozkładu
+d2 <- "norm"
+#drugie parametry
+p2 <- c(0, 1)#1000, 500
+#prawdopodobieństwo wystąpienia pierwszego rozkładu
+prob <- seq(0, 1, 0.1)
+```
+
+```{r echo=FALSE}
+
+
+params <- expand.grid(len = len, prob = prob)
+x <- 0
+tib <- tibble(sw_test = 0, ks_test = 0, jb_test = 0, prob = 0, len = 0)
+for(y in 1:length(params[,1]))
+{
+  len1 <- params$len[y]
+  prob1 <- params$prob[y]
+  ll <- lapply(rep(1, n), function(x){
+    rmix(len1, d1, p1, d2, p2, prob1)
+  })
+  t <- ctp(ll)
+  tib <- bind_rows(tib, bind_cols(t, prob = prob1, len = len1))
+  x <- x+1
+}
+tib <- tib[-1,]
+pp <- bind_rows(tib[,5], tib[,5], tib[,5])
+
+melted_tib <- melt(tib[,-5], id = "prob")
+melted_tib <- bind_cols(melted_tib, pp)
+colnames(melted_tib) <- c("Propability", "Test", "Power", "Length")
+
+
+```
+```{r fig.align='center', echo=FALSE}
+melted_tib %>%
+  ggplot(aes(x = Propability, y = Power, color = Test))+
+  geom_line()+
+  facet_wrap(~Length, ncol = 2)
+``` 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
