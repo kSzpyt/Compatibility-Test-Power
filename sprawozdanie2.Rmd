@@ -72,8 +72,30 @@ ctp <- function(datalist){
   return(r)
 }
 
+```  
+```{r include=FALSE}
+source("ctp_wx.R")
 ```
+Funckja ctp_wx jako argument przyjmuje **datalist1** oraz **datalist2**  które są listami zawierającymi daną ilość n-elementowych prób, na podstawie których wyliczana jest moc testu Wilcoxona.  
+Test Wilcoxona przyjmuje następujące hipotezy:  
+>$H_0$: Me1 = Me2   
+>$H_1$: Me1 != Me2 
+```{r}
+ctp_wx <- function(datalist1, datalist2){
   
+  a <- mapply(function(x, y)
+  {
+    wilcox.test(x, y, paired = T)$p.value
+  }, datalist1, datalist2)
+  
+  wx <- mean(a < 0.05)
+  
+  r <- tibble(wx_test = wx)
+  
+  return(r)
+}
+```
+
   
 Przykład budowy takiej listy:  
 ```{r}
@@ -85,8 +107,8 @@ Powyższy zapis pozwolił na stworzenie 3 elementowej tablicy, gdzie każdy z el
 
 ##Analiza mocy testów normalności  
 
-Badanie ma na celu zobrazowanie mocy testów normalności (**Shapiro-Wilka**, **Kołmogorowa-Smirnowa** oraz **Jarque-Bera**), na podstawie danych wygenerowanych za pomocą funkcji rmix, w zależności od parametrów przyjmowanych przez tą funkcję.  
-Długość próbki **len** oraz prawdopodobieństwo wystąpienia pierwszego rozkładu **prob**
+Badanie ma na celu zobrazowanie mocy testów normalności (**Shapiro-Wilka**, **Kołmogorowa-Smirnowa** oraz **Jarque-Bera**), na podstawie danych wygenerowanych za pomocą funkcji rmix, w zależności od parametrów przyjmowanych przez tą funkcję(**mn** oraz **sd**),  długość próbki **len** oraz prawdopodobieństwa wystąpienia pierwszego rozkładu **prob**.
+
 ```{r}
 #ilość prób
 n <- 1000
@@ -101,12 +123,11 @@ sd <- c(1, 10, 500, 1000, 10000)
 #drugi rodzaj rozkładu
 d2 <- "norm"
 #drugie parametry
-p2 <- c(1000, 500)#1000, 500
-
+p2 <- c(500, 500)#1000, 500
 #prawdopodobieństwo wystąpienia pierwszego rozkładu
 prob <- seq(0, 1, 0.1)
 ```  
-Dla wiarygodnych wyników ilość prób została ustawiona na XXX
+Ilość symulacji ustawiona została ustawiona na wysoką wartość równą 1000
 ```{r echo=FALSE}
 params <- expand.grid(len = len, prob = prob, mn = mn, sd = sd)
 tib <- tibble(sw_test = 0, ks_test = 0, jb_test = 0, prob = 0, len = 0, mn = 0, sd = 0)
@@ -130,17 +151,71 @@ melted_tib <- melt(tib[,c(-5, -6, -7)], id = "prob")
 melted_tib <- bind_cols(melted_tib, pp)
 colnames(melted_tib) <- c("Propability", "Test", "Power", "Length", "Mean", "Sd")
 ```  
-Poniższe wykresy obrazują zmiany mocy (**OY**) testów normalności w zależności od prawdopodobieństwa wystąpienia **pierwszego** rozkładu (**OX**), wartości oczekwianej, odchylenia standardowego oraz długości próby, widoczne kolejno na każdym z pasków. Rozkład "po lewej" ma statycznie ustawione parametry ( N(1000, 500) ), a rozkład "po prawej stronie" zmienia się tak jak widoczne jest to powyżej.
+Poniższe wykresy obrazują zmiany mocy (**OY**) testów normalności w zależności od prawdopodobieństwa wystąpienia **pierwszego** rozkładu (**OX**), **wartości oczekwianej**, **odchylenia standardowego** oraz **długości próby**, widoczne kolejno na każdym z pasków. Rozkład "po lewej" ma statycznie ustawione parametry (**N(500, 500)**), a rozkład "po prawej stronie" zmienia się tak jak widoczne jest to powyżej.
 ```{r fig.align='center', fig.height=30, fig.width=10, echo=FALSE}
 melted_tib %>%
   ggplot(aes(x = Propability, y = Power, color = Test))+
   geom_line()+
-  facet_wrap(~ Mean + Sd + Length, ncol = 5)
+  facet_wrap(~ Mean + Sd + Length, ncol = 5, labeller = label_both)
 ```  
 Tak jak widać na powyższych wykresach wartości skrajne dla zmiennej **Propability** drastycznie spadają. Jest to spowodawne tym, że im wartość bliższa jest zeru lub jedynce tym bardziej dany rozkład przypominał będzie rozkład normalny o danych parametrach.  
 Wzrost **długości próby** (trzecia wartość na pasku) niweluje błąd losowy, przez co wykresy są "wygładzone".  
-Im bardziej, dwa zmieszane ze sobą rozkłady, się od siebie **różnią**, tym wyższa jest moc testów istotności. Spowodowane to jest tym, że pomieszanie dwóch rozkładów normalnych o różnych parametrach nie daje rozkładu normalnego. Im rozkłady są do siebie bardziej zbliżają tym moc testów spada (co oznacza, że badany rozkład coraz bardziej upodabnia się do normalnego) 
-Zauważyć również można, że test Kołmogorowa-Smirnowa "nie radzi" sobie z rozkładami innymi niż standardowe.
+Im bardziej, dwa zmieszane ze sobą rozkłady, się od siebie **różnią**, tym wyższa jest moc testów istotności. Spowodowane to jest tym, że pomieszanie dwóch rozkładów normalnych o różnych parametrach nie daje rozkładu normalnego. Im rozkłady są do siebie bardziej zbliżone tym moc testów spada (co oznacza, że badany rozkład coraz bardziej upodabnia się do normalnego) 
+Zauważyć również można, że test Kołmogorowa-Smirnowa "nie radzi" sobie z rozkładami innymi niż standardowe.  
+  
+##Analiza mocy testu wilcoxona  
+Badanie ma na celu zobrazowanie mocy testu **Wilcoxona**, na podstawie danych wygenerowanych za pomocą funkcji rmix, w zależności od parametru przyjmowanego przez tą funkcję (**p1**)  czyli lambda, długość próbki **len** oraz prawdopodobieństwa wystąpienia pierwszego rozkładu **prob**.
+Test Wilcoxona w tym przypadku polegał będzie na przetestowaniu median dwóch rozkładów (**pierwszy** rozkład to mieszanka dwóch rozkładów Poissona, gdzie jeden z mieszanych rozkładów ma statyczny parametr lambda równy **100**, a drugi z mieszanych rozkładów zmienia się jak **p1**; **drugi** rozkład to czysty rozkład Poissona o parametrze lambda równym **100**)
+```{r}
+#ilość prób
+n <- 1000
+#długość próbki
+len <- c(10, 100, 1000, 5000)
+#pierwszy rodzaj rozkładu
+d1 <- "pois"
+#pierwsze parametry
+p1 <- c(1,10,100,1000)
+#drugi rodzaj rozkładu
+d2 <- "pois"
+#drugie parametry
+p2 <- 100
+#prawdopodobieństwo wystąpienia pierwszego rozkładu
+prob <- seq(0, 1, 0.1)
+```
+Ilość symulacji ustawiona została ustawiona na wysoką wartość równą 1000
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+params <- expand.grid(len = len, prob = prob, p1 = p1)
+tib <- tibble(wx_test = 0, prob = 0, len = 0, p1 = 0)
+for(y in 1:length(params[,1]))
+{
+  len1 <- params$len[y]
+  prob1 <- params$prob[y]
+  p1_1 <- params$p1[y]
+  ll <- lapply(rep(1, n), function(x){
+    rmix(len1, d1, p1_1, d2, p2, prob1)
+  })
+  ll2 <- lapply(rep(1, n), function(x){
+    rpois(len1, p2)
+  })
+  t <- ctp_wx(ll, ll2)
+  
+  tib <- bind_rows(tib, bind_cols(t, prob = prob1, len = len1, p1 = p1_1))
+}
+tib <- tib[-1,]
+
+colnames(tib) <- c("Power", "Probability", "Length", "Lambda")
+
+```
+Poniższe wykresy obrazują zmiany mocy (**OY**) testu Wilcoxona w zależności od prawdopodobieństwa wystąpienia **pierwszego** rozkładu (**OX**), **długości próby**, widocznego na każdym z pasków oraz parametru **lambda** ukazanego kolorami. Rozkład "po lewej" ma statycznie ustawione parametr lambda na wartość 100, a rozkład "po prawej stronie" to mieszanka rozkładów Poissona. W skrócie im bardziej przesówamy się w prawo po wykresie, tym bardziej rozkład upodabniał się będzie do "drugiego" mieszanego rozkładu.
+```{r echo=FALSE, fig.align='center'}
+tib %>%
+  ggplot(aes(x = Probability, y = Power, color = factor(Lambda)))+
+  geom_line()+
+  facet_wrap(~Length, ncol = 2, labeller = label_both)
+```  
+Powyższe wykresy pokazują, że wraz ze wzrostem **Propablity** moc testu wrasta co oznacza, że im bardziej dwie testowane próbki różnią się od siebie tym częstszym werdyktem jest odrzucenie hipotezy głównej (mediany próbek są istotnie różne).  
+Jak można zauważyć, gdy **lambda** równa jest 100 (czyli tyle ile statyczna próbka) moc testu jest w miarę na stałym, niskim poziome, co spowodowane jest tym, że mediany dwóch rozkładów o tych samych lambdach nie są istotnie różne.  
+Zwięszkanie **Length** niweluje błąd losowy, dzięki czemu wykresy z dłuższą próbą są dokładniejsze.
 
 
 
